@@ -59,20 +59,29 @@ Implement the changes described in the issue.
 - Make atomic, focused commits with clear messages.
 
 # Artifacts (optional)
-If you produce evidence of your work (test outputs, logs, generated reports),
+If you produce evidence of your work (test outputs, logs, generated reports, screenshots, videos),
 save them under ${ARTIFACTS_DIR}/ with descriptive filenames.
+
+If the issue requires demonstrating UI behavior (screenshots, screencasts, walkthroughs, before/after visuals, or a recorded demo for the reviewer), use the \`ui-demo-recorder\` skill — it drives the running app via Playwright MCP and produces HD video + per-step screenshots with cursor overlay and narration. Save its output under ${ARTIFACTS_DIR}/ so it gets attached to the PR.
 
 # PR description (REQUIRED)
 At the very end of your work, write a complete PR description to:
   ${PR_BODY_PATH}
 
-The PR body MUST include these sections in this exact order:
+The PR body MUST include these sections in this exact order.
+
+IMPORTANT formatting rules for the PR body:
+- GitHub renders single newlines inside a paragraph as visible line breaks (\`<br>\`).
+  So DO NOT hard-wrap paragraph text at 80 columns. Each paragraph must be a SINGLE long line.
+  Only insert a newline to start a new paragraph, a new bullet, or a new section.
+- Bullet lists: one bullet per line is fine — each bullet itself must be a single line (no mid-bullet wrap).
+- Do not indent prose. Do not add trailing two-space hard breaks.
 
 \`\`\`markdown
 Closes #${ISSUE}
 
 ## Summary
-2-4 sentences explaining what was changed and why. Plain language.
+2-4 sentences explaining what was changed and why. Plain language. Write each sentence-paragraph as ONE unwrapped line.
 
 ## Changes
 Bullet list of the concrete changes you made. Be specific:
