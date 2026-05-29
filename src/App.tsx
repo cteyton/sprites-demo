@@ -3,6 +3,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } f
 import { api, type Status, type Task } from "./api";
 import { Column } from "./components/Column";
 import { TaskForm } from "./components/TaskForm";
+import { ThemeToggle, type Theme } from "./components/ThemeToggle";
 
 const COLUMNS: { id: Status; title: string }[] = [
   { id: "todo", title: "To-Do" },
@@ -10,14 +11,31 @@ const COLUMNS: { id: Status; title: string }[] = [
   { id: "done", title: "Done" },
 ];
 
+function initialTheme(): Theme {
+  if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) {
+    return "dark";
+  }
+  return "light";
+}
+
 export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(initialTheme);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
     api.list().then(setTasks).catch((e) => setError(e.message));
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {}
+  }, [theme]);
 
   async function createTask(name: string, description: string) {
     try {
@@ -63,17 +81,20 @@ export function App() {
 
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-black">Wapati Todo</h1>
-        <p className="text-sm text-slate-500 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-black dark:text-white">Wapati Todo</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
+        </div>
+        <ThemeToggle theme={theme} onChange={setTheme} />
       </header>
 
       <TaskForm onCreate={createTask} />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-700 px-4 py-2 text-sm flex justify-between items-center">
+        <div className="mb-4 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-2 text-sm flex justify-between items-center">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">×</button>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-200">×</button>
         </div>
       )}
 

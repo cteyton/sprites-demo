@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wapati Todo</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script>
+      // Apply theme before paint to avoid a light-mode flash on dark-mode reload.
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          if (t === "dark") document.documentElement.classList.add("dark");
+        } catch (_) {}
+      })();
+    </script>
   </head>
-  <body class="bg-slate-100 text-slate-900 antialiased">
+  <body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased">
     <div id="root"></div>
     <script type="module" src="./client.tsx"></script>
   </body>
