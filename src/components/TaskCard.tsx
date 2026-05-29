@@ -1,9 +1,15 @@
 import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import type { Task } from "../api";
+import type { Status, Task } from "../api";
 
 const MAX_DESC = 500;
+
+const STATUS_BORDER: Record<Status, string> = {
+  todo: "border-black",
+  in_progress: "border-blue-500",
+  done: "border-green-500",
+};
 
 interface Props {
   task: Task;
@@ -73,7 +79,7 @@ export function TaskCard({ task, onUpdate, onDelete }: Props) {
       style={style}
       {...listeners}
       {...attributes}
-      className="rounded-md border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing select-none"
+      className={`rounded-md border-2 ${STATUS_BORDER[task.status]} bg-white p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing select-none`}
     >
       <div className="flex justify-between items-start gap-2">
         <h3 className="font-medium text-sm text-slate-800 break-words flex-1">{task.name}</h3>
