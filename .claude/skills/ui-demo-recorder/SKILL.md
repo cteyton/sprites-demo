@@ -1,6 +1,6 @@
 ---
 name: ui-demo-recorder
-description: Record polished UI demo videos and screenshots of a running web app using Playwright MCP — for client deliverables, release notes, feature walkthroughs, or bug repros. Produces an HD WebM video with chapter markers, an animated cursor overlay, and an optional subtitle bar that narrates each step (positioned deliberately so it never masks the UI being demonstrated), plus full-page screenshots at each step. Use this whenever the user asks to "record a demo", "create a screencast", "make a UI walkthrough video", "document this feature with video", "show the client how X works", "capture screenshots of the app", or anything similar — even when the user only says "make a video" or "take screenshots" in the context of a running frontend. Also use it when the user wants to demonstrate a workflow, generate marketing-quality footage of an app, or produce repeatable visual documentation.
+description: Record polished UI demo videos and screenshots of a running web app using Playwright MCP — for client deliverables, release notes, feature walkthroughs, or bug repros. Produces an HD WebM video with chapter markers, a mandatory animated cursor overlay, and a mandatory subtitle bar that narrates each step (positioned deliberately so it never masks the UI being demonstrated), plus full-page screenshots at each step. Use this whenever the user asks to "record a demo", "create a screencast", "make a UI walkthrough video", "document this feature with video", "show the client how X works", "capture screenshots of the app", or anything similar — even when the user only says "make a video" or "take screenshots" in the context of a running frontend. Also use it when the user wants to demonstrate a workflow, generate marketing-quality footage of an app, or produce repeatable visual documentation.
 ---
 
 # UI Demo Recorder
@@ -18,7 +18,10 @@ Produce client-ready UI documentation (HD video + screenshots) from a running we
 The deliverable is always one or more of:
 - WebM video (1440×900 HD by default), with optional chapter cards
 - Full-page PNG screenshots at key moments
-- An animated cursor overlay so viewers can follow what's being clicked
+- An animated cursor overlay so viewers can follow what's being clicked (**always present**)
+- A subtitle bar narrating each step (**always present**)
+
+**Non-negotiable:** every video this skill produces MUST carry both the cursor overlay and the subtitle bar. They are injected via `browser_evaluate` (pure DOM), independent of `.mcp.json` — a run that omits them is a defective deliverable, not a stylistic choice. If you cannot inject them, stop and report why rather than shipping a bare recording.
 
 ## Why a skill exists for this
 
@@ -67,10 +70,10 @@ The recipe in plain English:
 1. Make sure no browser tab is currently open on the Playwright side.
 2. Start the video.
 3. Navigate to the app.
-4. Inject the cursor overlay.
+4. **Inject BOTH overlays — cursor and subtitle bar — in one `browser_evaluate`. This step is mandatory, never skip it.**
 5. Add a chapter card.
-6. Drive the UI (click, type slowly, wait for visible feedback).
-7. Whenever the page reloads, reinject the cursor.
+6. Drive the UI (click, type slowly, wait for visible feedback). Call `window.__setSubtitle(...)` before every step.
+7. Whenever the page reloads, **reinject BOTH overlays** (cursor + subtitle bar). A reload wipes them.
 8. Add chapter cards between major sections.
 9. Stop the video.
 10. Move the file from project root into `videos/`.
@@ -93,10 +96,13 @@ If you get `Browser is already in use for ... use --isolated`, a non-recording P
 
 The Playwright video recorder is a CDP screencast of the viewport — the real OS cursor is never in the frame. To make the video readable, inject a DOM cursor that listens to `mousemove`/`mousedown`/`mouseup` (Playwright's pointer events do dispatch these in capture phase).
 
-Run the script in `scripts/inject-cursor.js` via `browser_evaluate` immediately after every navigate or reload:
+Run the script in `scripts/inject-cursor.js` via `browser_evaluate` immediately after every navigate or reload. **Inject the cursor and the subtitle bar (next section) together in a single `browser_evaluate`** so neither is ever forgotten — call both injector bodies in one function:
 
 ```
-mcp__playwright__browser_evaluate(function=<contents of scripts/inject-cursor.js>)
+mcp__playwright__browser_evaluate(function=`() => {
+  (<contents of scripts/inject-cursor.js>)();
+  (<contents of scripts/inject-subtitles.js>)({position: 'bottom'});
+}`)
 ```
 
 The cursor is:
@@ -116,9 +122,9 @@ Reinject after every `location.reload()` — there is no `initScript` equivalent
 
 Default duration of 1500–3000ms reads well at normal playback speed.
 
-### Subtitle bar (continuous narration)
+### Subtitle bar (continuous narration) — mandatory
 
-Chapter cards interrupt the action. For inline narration that doesn't hide the UI — short captions that explain each step while the viewer watches the click happen — inject a subtitle bar via `scripts/inject-subtitles.js`. Bundle it with the cursor injection so both go in with one `browser_evaluate`.
+Chapter cards interrupt the action. For inline narration that doesn't hide the UI — short captions that explain each step while the viewer watches the click happen — inject a subtitle bar via `scripts/inject-subtitles.js`. **This is required on every recording, not optional.** Bundle it with the cursor injection so both go in with one `browser_evaluate` (see the combined snippet above), and reinject both after every reload.
 
 The script exposes `window.__setSubtitle(text)`. Call it before each step:
 
@@ -187,7 +193,8 @@ Kill the dev server you started in the background. Don't leave it running.
 ## What "good" looks like
 
 - Resolution 1440×900 or larger
-- Smooth cursor that's clearly visible against the app's UI
+- Smooth cursor that's clearly visible against the app's UI — **present the whole time** (no bare frames)
+- A subtitle caption visible for **every** step, repositioned so it never masks the active UI
 - 3–6 chapter cards (intro, 2–4 sections, outro)
 - ~30 seconds to 2 minutes total — anything longer should be split
 - File size 4–15 MB for typical demos; if it's bigger, the run was too long
