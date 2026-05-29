@@ -64,7 +64,7 @@ export function App() {
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800">To-Do Board</h1>
+        <h1 className="text-3xl font-bold text-black">Wapati Todo</h1>
         <p className="text-sm text-slate-500 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
       </header>
 
