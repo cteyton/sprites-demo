@@ -80,38 +80,44 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-7xl mx-auto">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-black dark:text-white">Wapati Todo</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
-        </div>
-        <ThemeToggle theme={theme} onChange={setTheme} />
-      </header>
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        <header className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-black dark:text-white">Wapati Todo</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
+          </div>
+          <ThemeToggle theme={theme} onChange={setTheme} />
+        </header>
 
-      <TaskForm onCreate={createTask} />
+        <TaskForm onCreate={createTask} />
 
-      {error && (
-        <div className="mb-4 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-2 text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-200">×</button>
-        </div>
-      )}
+        {error && (
+          <div className="mb-4 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-2 text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-200">×</button>
+          </div>
+        )}
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {COLUMNS.map((col) => (
-            <Column
-              key={col.id}
-              id={col.id}
-              title={col.title}
-              tasks={tasks.filter((t) => t.status === col.id)}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-            />
-          ))}
-        </div>
-      </DndContext>
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {COLUMNS.map((col) => (
+              <Column
+                key={col.id}
+                id={col.id}
+                title={col.title}
+                tasks={tasks.filter((t) => t.status === col.id)}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+              />
+            ))}
+          </div>
+        </DndContext>
+      </div>
+
+      <footer className="bg-slate-200 dark:bg-slate-800 px-6 py-4 flex items-center justify-end">
+        <p className="text-sm text-slate-600 dark:text-slate-300">Made from Bordeaux with Love - 2026</p>
+      </footer>
     </div>
   );
 }
