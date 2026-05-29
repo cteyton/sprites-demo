@@ -23,7 +23,7 @@ export function TaskForm({ onCreate }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="mb-6 bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
+    <form onSubmit={submit} className="mb-6 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
       <div className="flex gap-2">
         <input
           value={name}
@@ -31,12 +31,12 @@ export function TaskForm({ onCreate }: Props) {
           onFocus={() => setExpanded(true)}
           maxLength={MAX_NAME}
           placeholder="New task name…"
-          className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex-1 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
         <button
           type="submit"
           disabled={!name.trim()}
-          className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-500 disabled:cursor-not-allowed"
         >
           Add
         </button>
@@ -48,9 +48,9 @@ export function TaskForm({ onCreate }: Props) {
             onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESC))}
             rows={2}
             placeholder="Description (optional, max 500 chars)"
-            className="w-full border border-slate-300 rounded px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 rounded px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
-          <div className="text-[10px] text-slate-400 text-right mt-1">{description.length}/{MAX_DESC}</div>
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 text-right mt-1">{description.length}/{MAX_DESC}</div>
         </div>
       )}
     </form>

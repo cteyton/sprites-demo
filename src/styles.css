@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Class-based dark mode for Tailwind v4: `dark:` variants apply when any
+   ancestor has the `dark` class. We toggle it on <html> from App.tsx. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Self-hosted Inter (imported from client.tsx so Bun resolves the font assets
    against the package) — identical rendering on macOS, Linux/headless sprites,
    and every client browser, with no OS-font dependency. unicode-range in the
