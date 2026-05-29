@@ -20,6 +20,20 @@ BRANCH="agent/issue-${ISSUE}"
 ARTIFACTS_DIR=".agent/artifacts/issue-${ISSUE}"
 PR_BODY_PATH=".agent/pr-body-issue-${ISSUE}.md"
 
+# --- Isolate git config from the service-user's (often unreadable) HOME. ---
+# The sprite-env service may run as a user lacking access to /home/sprite, so
+# git's default global config and ~/.config/git/ignore are unreadable
+# ("warning: unable to access '/home/sprite/.config/git/ignore': Permission
+# denied"). Point git at a writable per-run global config, drop the system
+# config, and override the excludesFile so git never touches the bad path.
+# We do NOT repoint HOME/XDG_CONFIG_HOME — gh reads its auth token from there
+# and changing it would break `gh auth setup-git` and `git push`.
+mkdir -p "${RUN_ROOT}"
+export GIT_CONFIG_GLOBAL="${RUN_ROOT}/.gitconfig"
+export GIT_CONFIG_NOSYSTEM=1
+git config --global core.excludesFile /dev/null
+git config --global init.defaultBranch main
+
 echo "==> [1/7] Fetching issue #${ISSUE} from ${REPO}"
 ISSUE_JSON=$(gh issue view "${ISSUE}" --repo "${REPO}" --json number,title,body,labels,comments)
 ISSUE_TITLE=$(echo "${ISSUE_JSON}" | jq -r '.title')
@@ -164,7 +178,8 @@ echo "${PROMPT}" | claude \
           | "\n[tool: " + .name + "] " + (tool_args))
       elif .type == "user" then
         (.message.content[]? | select(.type == "tool_result")
-          | "[tool_result" + (if .is_error then " ERROR" else "" end) + "] " + (result_text))
+          | select(.is_error == true)
+          | "[tool_result ERROR] " + (result_text))
       elif .type == "system" and .subtype == "init" then
         "[claude session started]"
       elif .type == "result" then
