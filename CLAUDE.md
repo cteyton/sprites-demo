@@ -66,7 +66,7 @@ bash scripts/install-michel-service.sh   # idempotent; generates secret on first
 Operate:
 ```bash
 sprite exec -- sprite-env services list
-sprite exec -- sprite-env services logs michel-webhook --tail 100
+sprite exec -- tail -n 100 /.sprite/logs/services/michel-webhook.log   # no `services logs` subcommand; read the file
 sprite exec -- sprite-env services stop michel-webhook   # pause without uninstalling
 ```
 

@@ -29,7 +29,7 @@ on_failure() {
     "- Failed near line ${line} of \`run-michel.sh\`" \
     "- Workspace kept for debugging: \`${RUN_ROOT:-?}\`" \
     "" \
-    "Check the sprite logs with \`sprite-env services logs michel-webhook --tail 100\`, then re-trigger with a new \`@michel\` comment once the cause is fixed.")
+    "Check the sprite logs with \`tail -n 100 /.sprite/logs/services/michel-webhook.log\`, then re-trigger with a new \`@michel\` comment once the cause is fixed.")
   gh issue comment "${ISSUE}" --repo "${REPO}" --body "${body}" >/dev/null 2>&1 || true
 }
 

@@ -77,7 +77,8 @@ sprite exec -- sprite-env services restart michel-webhook
 
 ```bash
 sprite exec -- sprite-env services list
-sprite exec -- sprite-env services logs michel-webhook --tail 100
+# NB: there is no `services logs` subcommand — read the log file directly:
+sprite exec -- tail -n 100 /.sprite/logs/services/michel-webhook.log   # add -f to follow
 sprite exec -- sprite-env services restart michel-webhook
 sprite exec -- sprite-env services stop michel-webhook
 sprite exec -- sprite-env services start michel-webhook
@@ -348,7 +349,7 @@ bash scripts/install-michel-service.sh
 ```bash
 sprite -o <org> list                                  # worker states (running/warm/cold)
 sprite -o <org> -s michel-worker-1 checkpoint list    # clean checkpoint id(s)
-sprite -s test-michel exec -- sprite-env services logs michel-webhook --tail 100
+sprite -s test-michel exec -- tail -f /.sprite/logs/services/michel-webhook.log   # run-michel output streams here too
 sprite -o <org> -s michel-worker-1 exec -- bash -lc 'fc-list | wc -l; ls -x ~/.cache/ms-playwright'
 sprite -o <org> -s michel-worker-1 restore <id>       # manual reset
 ```

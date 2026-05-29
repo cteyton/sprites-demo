@@ -155,7 +155,7 @@ Smoke check:
 
 Service control:
   sprite -s ${SPRITE_NAME} exec -- sprite-env services list
-  sprite -s ${SPRITE_NAME} exec -- sprite-env services logs ${SERVICE_NAME} --tail 100
+  sprite -s ${SPRITE_NAME} exec -- tail -n 100 /.sprite/logs/services/${SERVICE_NAME}.log
   sprite -s ${SPRITE_NAME} exec -- sprite-env services restart ${SERVICE_NAME}
   sprite -s ${SPRITE_NAME} exec -- sprite-env services stop ${SERVICE_NAME}
   sprite -s ${SPRITE_NAME} exec -- sprite-env services start ${SERVICE_NAME}
