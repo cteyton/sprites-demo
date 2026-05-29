@@ -123,6 +123,7 @@ Implement the changes described in the issue.
 - \`updateTask\`/\`deleteTask\` use optimistic updates with rollback in \`src/App.tsx\` — preserve that pattern for new mutations. \`createTask\` is intentionally non-optimistic.
 - All mutation errors must surface via \`setError\` in \`App.tsx\` (red banner) — never throw silently.
 - Make atomic, focused commits with clear messages.
+- Before you finish, SHUT DOWN every background process you started: stop the dev server (\`bun run dev\`/\`bun --hot\`) and close any Playwright/chrome-devtools MCP browser sessions. Leave no lingering daemons — they block the run from completing.
 
 # Artifacts (optional)
 If you produce evidence of your work (test outputs, logs, generated reports, screenshots, videos),
@@ -185,12 +186,30 @@ EOF
 )
 
 echo "==> [6/8] Running Claude (this may take several minutes)"
+# Claude can leave background daemons alive after it finishes — the `bun run dev`
+# server it starts to verify the UI, and the Playwright / chrome-devtools MCP
+# browsers. Those children inherit Claude's stdout, so piping `claude | jq`
+# directly wedges forever: even after Claude emits its final result it stays
+# alive waiting on an undead MCP browser, and `jq` never sees EOF because the
+# daemons still hold the pipe's write end. The whole run hangs and the worker is
+# never released.
+#
+# Fix: write the raw stream to a FILE (decoupled from any pipe), tail it into jq
+# for the live log, then once Claude finishes its work force-reap the daemons so
+# Claude itself can exit. Bounded — never an infinite hang.
+CLAUDE_RAW="${RUN_ROOT}/claude-stream.jsonl"
+: > "${CLAUDE_RAW}"
+
 echo "${PROMPT}" | claude \
   --print \
   --output-format stream-json \
   --verbose \
   --dangerously-skip-permissions \
-  | jq --unbuffered -r '
+  > "${CLAUDE_RAW}" 2>&1 &
+CLAUDE_PID=$!
+
+# Live-render the stream to the log. `--pid` makes tail exit once Claude is gone.
+tail -n +1 --pid="${CLAUDE_PID}" -f "${CLAUDE_RAW}" | jq --unbuffered -r '
       # Collapse newlines + clip long strings so one log line stays one line.
       def oneline: (. // "") | tostring | gsub("\\s+"; " ");
       def clip($n): oneline | if (. | length) > $n then .[0:$n] + "…" else . end;
@@ -226,7 +245,28 @@ echo "${PROMPT}" | claude \
       elif .type == "result" then
         "\n[done: " + (.subtype // "ok") + "]"
       else empty end
-    '
+    ' &
+RENDER_PID=$!
+
+# Wait until Claude emits its final result line (or exits on its own).
+while kill -0 "${CLAUDE_PID}" 2>/dev/null; do
+  grep -q '"type":"result"' "${CLAUDE_RAW}" 2>/dev/null && break
+  sleep 2
+done
+
+# Reap undead daemons so Claude can exit. Patterns match the daemon argv only
+# (not this script, not the `claude`/`tail`/`jq` lines) and pkill skips itself.
+pkill -KILL -f 'bun run dev'              2>/dev/null || true
+pkill -KILL -f 'bun --hot'               2>/dev/null || true
+pkill -KILL -f 'chrome-devtools-mcp'     2>/dev/null || true
+pkill -KILL -f 'ms-playwright/mcp-chrome' 2>/dev/null || true
+
+# Give Claude a short grace period to exit cleanly now that its children are
+# gone; force it if it still lingers. Then collect the background jobs.
+for _ in $(seq 1 15); do kill -0 "${CLAUDE_PID}" 2>/dev/null || break; sleep 1; done
+kill -KILL "${CLAUDE_PID}" 2>/dev/null || true
+wait "${CLAUDE_PID}" 2>/dev/null || true
+wait "${RENDER_PID}"  2>/dev/null || true
 
 
 echo "==> [7/8] Verifying PR body was written"
