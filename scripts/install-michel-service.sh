@@ -67,7 +67,11 @@ set -a; source "${ENV_FILE}"; set +a
 : "${ALLOWED_REPOS:?missing in ${ENV_FILE}}"
 ALLOWED_ASSOCIATIONS="${ALLOWED_ASSOCIATIONS:-OWNER,MEMBER,COLLABORATOR}"
 MICHEL_SCRIPT="${MICHEL_SCRIPT:-${SPRITE_WORKDIR}/scripts/run-michel.sh}"
+DISPATCH_SCRIPT="${DISPATCH_SCRIPT:-${SPRITE_WORKDIR}/scripts/dispatch-michel.sh}"
 WORKDIR="${WORKDIR:-${SPRITE_WORKDIR}}"
+WORKER_SPRITES="${WORKER_SPRITES:-}"
+CONTROLLER_ORG="${CONTROLLER_ORG:-}"
+: "${WORKER_SPRITES:?missing in ${ENV_FILE} — set the worker pool (csv). Provision with scripts/provision-worker.sh}"
 
 echo "==> [2/6] Uploading scripts + env file to sprite"
 "${SP[@]}" exec -- mkdir -p "${SPRITE_WORKDIR}/scripts"
@@ -80,16 +84,32 @@ WEBHOOK_SECRET=${WEBHOOK_SECRET}
 ALLOWED_REPOS=${ALLOWED_REPOS}
 ALLOWED_ASSOCIATIONS=${ALLOWED_ASSOCIATIONS}
 MICHEL_SCRIPT=${MICHEL_SCRIPT}
+DISPATCH_SCRIPT=${DISPATCH_SCRIPT}
 WORKDIR=${WORKDIR}
+WORKER_SPRITES=${WORKER_SPRITES}
+CONTROLLER_ORG=${CONTROLLER_ORG}
 PORT=8080
 ENV
+# Append the per-worker clean-checkpoint ids (WORKER_CLEAN_CKPT_*) verbatim so
+# dispatch-michel.sh can map each worker → its reset point.
+grep -E '^WORKER_CLEAN_CKPT_' "${ENV_FILE}" >> "${TMP_ENV}" || true
 
 "${SP[@]}" exec \
   --file "scripts/webhook-server.ts:${REMOTE_SERVER_PATH}" \
   --file "scripts/run-michel.sh:${SPRITE_WORKDIR}/scripts/run-michel.sh" \
+  --file "scripts/dispatch-michel.sh:${DISPATCH_SCRIPT}" \
   --file "scripts/webhook-runner.sh:${REMOTE_RUNNER_PATH}" \
   --file "${TMP_ENV}:${REMOTE_ENV_PATH}" \
-  -- bash -c "chmod +x ${SPRITE_WORKDIR}/scripts/run-michel.sh ${REMOTE_RUNNER_PATH} && chmod 600 ${REMOTE_ENV_PATH}"
+  -- bash -c "chmod +x ${SPRITE_WORKDIR}/scripts/run-michel.sh ${DISPATCH_SCRIPT} ${REMOTE_RUNNER_PATH} && chmod 600 ${REMOTE_ENV_PATH}"
+
+# Give the controller a sprite API token so it can drive worker sprites
+# (sprite -s <worker> exec/restore) from inside dispatch-michel.sh.
+if [ -n "${SPRITE_TOKEN:-}" ] && [ "${SPRITE_TOKEN}" != "replace-with-sprite-api-token" ]; then
+  echo "  setting up sprite auth on the controller"
+  "${SP[@]}" exec -- bash -lc "sprite auth setup --token '${SPRITE_TOKEN}'" >/dev/null
+else
+  echo "  ⚠️  SPRITE_TOKEN not set in ${ENV_FILE} — the controller cannot drive workers until it is."
+fi
 
 echo "==> [3/6] Ensuring bun deps installed on sprite"
 "${SP[@]}" exec -- bash -c "cd ${SPRITE_WORKDIR} && (bun install || true)"

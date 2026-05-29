@@ -7,7 +7,9 @@ const ALLOWED_REPOS = csv(process.env.ALLOWED_REPOS);
 const ALLOWED_ASSOCIATIONS = new Set(
   csv(process.env.ALLOWED_ASSOCIATIONS, "OWNER,MEMBER,COLLABORATOR"),
 );
-const MICHEL_SCRIPT = process.env.MICHEL_SCRIPT || "/home/sprite/workspace/scripts/run-michel.sh";
+// The controller no longer runs run-michel.sh itself — it dispatches each
+// accepted mention to a worker sprite (one run per worker, real parallelism).
+const DISPATCH_SCRIPT = process.env.DISPATCH_SCRIPT || "/home/sprite/workspace/scripts/dispatch-michel.sh";
 const WORKDIR = process.env.WORKDIR || "/home/sprite/workspace";
 const MICHEL_RE = /(^|\W)@michel(\W|$)/i;
 
@@ -95,7 +97,7 @@ const server = serve({
 
         log("info", "accepted", { repo, issue, author, association });
 
-        Bun.spawn([MICHEL_SCRIPT, repo, String(issue)], {
+        Bun.spawn([DISPATCH_SCRIPT, repo, String(issue)], {
           cwd: WORKDIR,
           stdout: "inherit",
           stderr: "inherit",
