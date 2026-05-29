@@ -64,7 +64,7 @@ export GIT_CONFIG_NOSYSTEM=1
 git config --global core.excludesFile /dev/null
 git config --global init.defaultBranch main
 
-echo "==> [1/7] Fetching issue #${ISSUE} from ${REPO}"
+echo "==> [1/8] Fetching issue #${ISSUE} from ${REPO}"
 ISSUE_JSON=$(gh issue view "${ISSUE}" --repo "${REPO}" --json number,title,body,labels,comments)
 ISSUE_TITLE=$(echo "${ISSUE_JSON}" | jq -r '.title')
 ISSUE_BODY=$(echo "${ISSUE_JSON}" | jq -r '.body')
@@ -72,7 +72,7 @@ ISSUE_COMMENTS=$(echo "${ISSUE_JSON}" | jq -r '.comments[] | "[\(.author.login)]
 
 echo "Issue: ${ISSUE_TITLE}"
 
-echo "==> [2/7] Fresh-cloning ${REPO} into ${WORKDIR} (run ${RUN_ID})"
+echo "==> [2/8] Fresh-cloning ${REPO} into ${WORKDIR} (run ${RUN_ID})"
 mkdir -p "${RUN_ROOT}"
 gh repo clone "${REPO}" "${WORKDIR}" -- --branch main
 cd "${WORKDIR}"
@@ -81,11 +81,22 @@ git config user.name "Michel Agent"
 gh auth setup-git
 git checkout -b "${BRANCH}"
 
-echo "==> [3/7] Creating artifacts directory"
+# Pre-install deps so the agent doesn't waste turns discovering a fresh clone
+# has no node_modules (a failed `tsc`, then `bun install`, then retry). Bun's
+# global cache (~/.bun/install/cache) is shared across runs, so only the first
+# run pays download cost. Guarded so non-Bun repos in the pool don't error.
+echo "==> [3/8] Installing dependencies"
+if [ -f package.json ]; then
+  bun install --frozen-lockfile || bun install
+else
+  echo "No package.json — skipping dependency install."
+fi
+
+echo "==> [4/8] Creating artifacts directory"
 mkdir -p "${ARTIFACTS_DIR}"
 mkdir -p "$(dirname "${PR_BODY_PATH}")"
 
-echo "==> [4/7] Building Claude prompt"
+echo "==> [5/8] Building Claude prompt"
 PROMPT=$(cat <<EOF
 You are Michel, an autonomous coding agent working on GitHub issue #${ISSUE} in repository ${REPO}.
 
@@ -105,7 +116,7 @@ Implement the changes described in the issue.
 - Working directory: ${WORKDIR}
 - Branch: ${BRANCH}
 - This is a Bun-native full-stack app (Bun server + React 19 client, SQLite via \`bun:sqlite\`). No bundler, no build step — Bun handles TS/TSX/Tailwind v4 on demand.
-- Install deps with \`bun install\`. Run dev server with \`bun run dev\` (hot reload) or \`bun run start\`.
+- Dependencies are already installed (\`bun install\` ran before you started). Run dev server with \`bun run dev\` (hot reload) or \`bun run start\`.
 - There is no lint, test, or build script. Typecheck manually with \`bunx tsc --noEmit\`.
 - There is no automated test suite. For UI verification, use the configured MCP servers (\`playwright\`, \`chrome-devtools\` in \`.mcp.json\`); Playwright writes recordings to \`./videos\`.
 - \`Task\` and \`Status\` types are duplicated in \`src/db.ts\` (server) and \`src/api.ts\` (client) by design — never import \`db.ts\` from client code. If you change the schema, update both copies.
@@ -173,7 +184,7 @@ Begin.
 EOF
 )
 
-echo "==> [5/7] Running Claude (this may take several minutes)"
+echo "==> [6/8] Running Claude (this may take several minutes)"
 echo "${PROMPT}" | claude \
   --print \
   --output-format stream-json \
@@ -218,7 +229,7 @@ echo "${PROMPT}" | claude \
     '
 
 
-echo "==> [6/7] Verifying PR body was written"
+echo "==> [7/8] Verifying PR body was written"
 if [ ! -f "${PR_BODY_PATH}" ]; then
   echo "❌ Claude did not write the PR body to ${PR_BODY_PATH}"
   echo "   Falling back to a minimal body. Review carefully before merging."
@@ -234,7 +245,7 @@ Automated implementation by Michel for issue #${ISSUE}.
 EOF
 fi
 
-echo "==> [7/7] Committing artifacts, building artifacts section, and creating PR"
+echo "==> [8/8] Committing artifacts, building artifacts section, and creating PR"
 
 # Commit artifacts si présents
 if [ -d "${ARTIFACTS_DIR}" ] && [ -n "$(ls -A "${ARTIFACTS_DIR}" 2>/dev/null)" ]; then
