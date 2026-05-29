@@ -62,35 +62,41 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-7xl mx-auto">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-black">Wapati Todo</h1>
-        <p className="text-sm text-slate-500 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
-      </header>
+    <div className="min-h-screen flex flex-col">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        <header className="mb-6">
+          <h1 className="text-3xl font-bold text-black">Wapati Todo</h1>
+          <p className="text-sm text-slate-500 mt-1">Drag cards between columns. SQLite + Bun + React.</p>
+        </header>
 
-      <TaskForm onCreate={createTask} />
+        <TaskForm onCreate={createTask} />
 
-      {error && (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-700 px-4 py-2 text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">×</button>
-        </div>
-      )}
+        {error && (
+          <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-700 px-4 py-2 text-sm flex justify-between items-center">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">×</button>
+          </div>
+        )}
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {COLUMNS.map((col) => (
-            <Column
-              key={col.id}
-              id={col.id}
-              title={col.title}
-              tasks={tasks.filter((t) => t.status === col.id)}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-            />
-          ))}
-        </div>
-      </DndContext>
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {COLUMNS.map((col) => (
+              <Column
+                key={col.id}
+                id={col.id}
+                title={col.title}
+                tasks={tasks.filter((t) => t.status === col.id)}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+              />
+            ))}
+          </div>
+        </DndContext>
+      </main>
+
+      <footer className="bg-slate-800 text-slate-200 px-6 py-4 flex items-center justify-end">
+        <p className="text-sm">Made from Bordeaux with Love - 2026</p>
+      </footer>
     </div>
   );
 }
