@@ -32,6 +32,9 @@ echo "==> [2/7] Fresh-cloning ${REPO} into ${WORKDIR} (run ${RUN_ID})"
 mkdir -p "${RUN_ROOT}"
 gh repo clone "${REPO}" "${WORKDIR}" -- --branch main
 cd "${WORKDIR}"
+git config user.email "michel-agent@users.noreply.github.com"
+git config user.name "Michel Agent"
+gh auth setup-git
 git checkout -b "${BRANCH}"
 
 echo "==> [3/7] Creating artifacts directory"
