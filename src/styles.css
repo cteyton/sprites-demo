@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Self-hosted Inter (imported from client.tsx so Bun resolves the font assets
+   against the package) — identical rendering on macOS, Linux/headless sprites,
+   and every client browser, with no OS-font dependency. unicode-range in the
+   font CSS means the browser only fetches the subset it needs (latin for English). */
+@theme {
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+}
