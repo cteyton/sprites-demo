@@ -1,10 +1,12 @@
 export type Status = "todo" | "in_progress" | "done";
+export type Severity = "high" | "medium" | "low";
 
 export interface Task {
   id: number;
   name: string;
   description: string;
   status: Status;
+  severity: Severity;
   position: number;
   created_at: string;
 }
@@ -26,7 +28,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, description }),
     }).then(handle<Task>),
-  update: (id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "position">>) =>
+  update: (id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "severity" | "position">>) =>
     fetch(`/api/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

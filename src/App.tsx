@@ -3,6 +3,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } f
 import { api, type Status, type Task } from "./api";
 import { Column } from "./components/Column";
 import { TaskForm } from "./components/TaskForm";
+import { TaskDrawer } from "./components/TaskDrawer";
 import { ThemeToggle, type Theme } from "./components/ThemeToggle";
 
 const COLUMNS: { id: Status; title: string }[] = [
@@ -22,6 +23,7 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const [drawerTask, setDrawerTask] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function App() {
     }
   }
 
-  async function updateTask(id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "position">>) {
+  async function updateTask(id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "severity" | "position">>) {
     const prev = tasks;
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, ...patch } as Task : t)));
     try {
@@ -106,12 +108,21 @@ export function App() {
               id={col.id}
               title={col.title}
               tasks={tasks.filter((t) => t.status === col.id)}
+              onEdit={setDrawerTask}
               onUpdate={updateTask}
               onDelete={deleteTask}
             />
           ))}
         </div>
       </DndContext>
+
+      {drawerTask && (
+        <TaskDrawer
+          task={drawerTask}
+          onSave={updateTask}
+          onClose={() => setDrawerTask(null)}
+        />
+      )}
     </div>
   );
 }
