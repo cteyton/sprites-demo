@@ -6,6 +6,7 @@
         "@playwright/mcp@latest",
         "--caps=devtools",
         "--output-dir=./videos",
+        "--headless",
         "--no-sandbox"
       ]
     },
