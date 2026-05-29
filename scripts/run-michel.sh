@@ -8,7 +8,37 @@ ISSUE="${2:?usage: $0 <owner/repo> <issue-number>}"
 
 ERROR_LOG="${MICHEL_ERROR_LOG:-/tmp/michel-runs/last-error.log}"
 mkdir -p "$(dirname "${ERROR_LOG}")"
-trap 'rc=$?; if [ $rc -ne 0 ]; then echo "[$(date -Is)] run-michel.sh failed (rc=$rc) repo=${REPO} issue=${ISSUE} run=${RUN_ID:-?} line=${LINENO}" >> "${ERROR_LOG}"; fi' EXIT
+
+# Remove the per-run workspace. cd out first since WORKDIR lives inside RUN_ROOT.
+cleanup_workspace() {
+  cd /tmp 2>/dev/null || true
+  [ -n "${RUN_ROOT:-}" ] && rm -rf "${RUN_ROOT}" 2>/dev/null || true
+}
+
+# Post feedback to the issue so a failed run isn't silent, then log it.
+on_failure() {
+  local rc=$1 line=$2
+  echo "[$(date -Is)] run-michel.sh failed (rc=${rc}) repo=${REPO} issue=${ISSUE} run=${RUN_ID:-?} line=${line}" >> "${ERROR_LOG}"
+  local body
+  body=$(printf '%s\n' \
+    "🛑 **Michel run failed** (exit code ${rc})." \
+    "" \
+    "The automated agent hit an error while working on this issue and did **not** open a PR." \
+    "" \
+    "- Run ID: \`${RUN_ID:-?}\`" \
+    "- Failed near line ${line} of \`run-michel.sh\`" \
+    "- Workspace kept for debugging: \`${RUN_ROOT:-?}\`" \
+    "" \
+    "Check the sprite logs with \`sprite-env services logs michel-webhook --tail 100\`, then re-trigger with a new \`@michel\` comment once the cause is fixed.")
+  gh issue comment "${ISSUE}" --repo "${REPO}" --body "${body}" >/dev/null 2>&1 || true
+}
+
+# Capture the real failing line (the EXIT trap's $LINENO points at the trap itself).
+FAIL_LINE=0
+trap 'FAIL_LINE=$LINENO' ERR
+# On success: clean up the workspace. On failure: comment on the issue and keep
+# the workspace so the failure can be inspected.
+trap 'rc=$?; if [ $rc -ne 0 ]; then on_failure "$rc" "$FAIL_LINE"; else cleanup_workspace; fi' EXIT
 
 # Fresh per-run workspace so concurrent/retriggered mentions never share state.
 # /tmp is used by default because the sprite-env service runs as a user whose
