@@ -5,12 +5,22 @@
       "args": [
         "@playwright/mcp@latest",
         "--caps=devtools",
-        "--output-dir=./videos"
+        "--output-dir=./videos",
+        "--no-sandbox"
       ]
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless",
+        "--isolated",
+        "--chromeArg=--no-sandbox",
+        "--chromeArg=--disable-setuid-sandbox",
+        "--chromeArg=--disable-gpu",
+        "--chromeArg=--disable-dev-shm-usage"
+      ]
     }
   }
 }

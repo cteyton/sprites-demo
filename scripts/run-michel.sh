@@ -6,7 +6,16 @@ set -euo pipefail
 REPO="${1:?usage: $0 <owner/repo> <issue-number>}"
 ISSUE="${2:?usage: $0 <owner/repo> <issue-number>}"
 
-WORKDIR="/home/sprite/workspace"
+ERROR_LOG="${MICHEL_ERROR_LOG:-/tmp/michel-runs/last-error.log}"
+mkdir -p "$(dirname "${ERROR_LOG}")"
+trap 'rc=$?; if [ $rc -ne 0 ]; then echo "[$(date -Is)] run-michel.sh failed (rc=$rc) repo=${REPO} issue=${ISSUE} run=${RUN_ID:-?} line=${LINENO}" >> "${ERROR_LOG}"; fi' EXIT
+
+# Fresh per-run workspace so concurrent/retriggered mentions never share state.
+# /tmp is used by default because the sprite-env service runs as a user whose
+# write access to /home/sprite is not guaranteed. Override with RUNS_BASE.
+RUN_ID="issue-${ISSUE}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN_ROOT="${RUNS_BASE:-/tmp/michel-runs}/${RUN_ID}"
+WORKDIR="${RUN_ROOT}/repo"
 BRANCH="agent/issue-${ISSUE}"
 ARTIFACTS_DIR=".agent/artifacts/issue-${ISSUE}"
 PR_BODY_PATH=".agent/pr-body-issue-${ISSUE}.md"
@@ -19,12 +28,11 @@ ISSUE_COMMENTS=$(echo "${ISSUE_JSON}" | jq -r '.comments[] | "[\(.author.login)]
 
 echo "Issue: ${ISSUE_TITLE}"
 
-echo "==> [2/7] Setting up branch ${BRANCH}"
+echo "==> [2/7] Fresh-cloning ${REPO} into ${WORKDIR} (run ${RUN_ID})"
+mkdir -p "${RUN_ROOT}"
+gh repo clone "${REPO}" "${WORKDIR}" -- --branch main
 cd "${WORKDIR}"
-git fetch origin
-git checkout main
-git pull
-git checkout -b "${BRANCH}" 2>/dev/null || git checkout "${BRANCH}"
+git checkout -b "${BRANCH}"
 
 echo "==> [3/7] Creating artifacts directory"
 mkdir -p "${ARTIFACTS_DIR}"
@@ -125,11 +133,35 @@ echo "${PROMPT}" | claude \
   --verbose \
   --dangerously-skip-permissions \
   | jq --unbuffered -r '
+      # Collapse newlines + clip long strings so one log line stays one line.
+      def oneline: (. // "") | tostring | gsub("\\s+"; " ");
+      def clip($n): oneline | if (. | length) > $n then .[0:$n] + "…" else . end;
+
+      # Pull the most useful argument out of a tool_use .input, per tool.
+      def tool_args:
+        .input as $i
+        | if   $i.file_path  then $i.file_path
+          elif $i.command    then "$ " + ($i.command | clip(300))
+          elif $i.pattern    then "/" + $i.pattern + "/" + (if $i.path then " in " + $i.path elif $i.glob then " glob " + $i.glob else "" end)
+          elif $i.query      then ($i.query | clip(200))
+          elif $i.url        then $i.url
+          elif $i.prompt     then ($i.prompt | clip(200))
+          elif $i.description then ($i.description | clip(200))
+          else "" end;
+
+      # Render a tool_result content block (string or array of parts) to text.
+      def result_text:
+        (.content // "")
+        | if type == "array" then (map(.text? // (.content? // "") // "") | join(" ")) else . end
+        | clip(400);
+
       if .type == "assistant" then
         (.message.content[]? | select(.type == "text") | .text),
-        (.message.content[]? | select(.type == "tool_use") | "\n[tool: " + .name + "]")
+        (.message.content[]? | select(.type == "tool_use")
+          | "\n[tool: " + .name + "] " + (tool_args))
       elif .type == "user" then
-        (.message.content[]? | select(.type == "tool_result") | "[tool_result]")
+        (.message.content[]? | select(.type == "tool_result")
+          | "[tool_result" + (if .is_error then " ERROR" else "" end) + "] " + (result_text))
       elif .type == "system" and .subtype == "init" then
         "[claude session started]"
       elif .type == "result" then
@@ -162,8 +194,9 @@ if [ -d "${ARTIFACTS_DIR}" ] && [ -n "$(ls -A "${ARTIFACTS_DIR}" 2>/dev/null)" ]
   git commit -m "chore(agent): add artifacts for issue #${ISSUE}" || true
 fi
 
-# Push la branche
-git push -u origin "${BRANCH}"
+# Push la branche. --force-with-lease so a retriggered @michel on the same
+# issue replaces the prior attempt instead of failing on non-ff.
+git push -u origin "${BRANCH}" --force-with-lease
 
 # Construit le bloc Artifacts
 ARTIFACTS_BLOCK=""
@@ -172,17 +205,19 @@ if [ -d "${ARTIFACTS_DIR}" ] && [ -n "$(ls -A "${ARTIFACTS_DIR}" 2>/dev/null)" ]
   for file in "${ARTIFACTS_DIR}"/*; do
     [ -e "$file" ] || continue
     filename=$(basename "$file")
+    raw_url="https://github.com/${REPO}/raw/${BRANCH}/${ARTIFACTS_DIR}/${filename}"
+    blob_url="https://github.com/${REPO}/blob/${BRANCH}/${ARTIFACTS_DIR}/${filename}"
     case "$filename" in
       *.png|*.jpg|*.jpeg|*.gif|*.webp)
         ARTIFACTS_BLOCK+="### ${filename}"$'\n'
-        ARTIFACTS_BLOCK+="![${filename}](../raw/${BRANCH}/${ARTIFACTS_DIR}/${filename})"$'\n\n'
+        ARTIFACTS_BLOCK+="![${filename}](${raw_url})"$'\n\n'
         ;;
       *.mp4|*.webm|*.mov)
         ARTIFACTS_BLOCK+="### ${filename}"$'\n'
-        ARTIFACTS_BLOCK+="<video src=\"../raw/${BRANCH}/${ARTIFACTS_DIR}/${filename}\" controls></video>"$'\n\n'
+        ARTIFACTS_BLOCK+="[▶ ${filename}](${raw_url}) (click to play/download)"$'\n\n'
         ;;
       *)
-        ARTIFACTS_BLOCK+="- [\`${filename}\`](../blob/${BRANCH}/${ARTIFACTS_DIR}/${filename})"$'\n'
+        ARTIFACTS_BLOCK+="- [\`${filename}\`](${blob_url})"$'\n'
         ;;
     esac
   done
@@ -201,14 +236,22 @@ awk -v block="${ARTIFACTS_BLOCK}" '{
   }
 }' "${PR_BODY_PATH}" > "${PR_BODY_FINAL}"
 
-# Crée la PR
-PR_URL=$(gh pr create \
-  --repo "${REPO}" \
-  --base main \
-  --head "${BRANCH}" \
-  --title "[Michel] ${ISSUE_TITLE}" \
-  --body-file "${PR_BODY_FINAL}" \
-  --label "agent-generated")
+# Create or update the PR. If one already exists for this branch (retrigger
+# of the same issue), force-push above refreshed the commits; just replace
+# the body.
+EXISTING_PR=$(gh pr list --repo "${REPO}" --head "${BRANCH}" --state open --json url --jq '.[0].url' || true)
+if [ -n "${EXISTING_PR}" ]; then
+  gh pr edit "${EXISTING_PR}" --repo "${REPO}" --body-file "${PR_BODY_FINAL}" >/dev/null
+  PR_URL="${EXISTING_PR}"
+else
+  PR_URL=$(gh pr create \
+    --repo "${REPO}" \
+    --base main \
+    --head "${BRANCH}" \
+    --title "[Michel] ${ISSUE_TITLE}" \
+    --body-file "${PR_BODY_FINAL}" \
+    --label "agent-generated")
+fi
 
 rm "${PR_BODY_FINAL}"
 

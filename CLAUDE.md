@@ -47,3 +47,27 @@ Single-process full-stack app: one Bun server (`src/server.ts`) serves both the 
 - `PATCH /api/tasks/:id` is a field-merge: omitted fields fall back to current row values. Client can send partial patches (`{ status }` alone is valid).
 - `createTask` is **not** optimistic — only `updateTask`/`deleteTask` are. New cards appear after server confirms.
 - Drag activation threshold: `PointerSensor` requires 5px movement before drag starts, so pointerdown on a card without movement is still a click.
+
+## Michel webhook (GitHub `@michel` → sprite)
+
+A comment containing `@michel` on an issue in `cteyton/sprites-demo` triggers `scripts/run-michel.sh <owner/repo> <issue_number>` on the `test-michel` sprite. Authorization: `comment.author_association ∈ {OWNER, MEMBER, COLLABORATOR}`.
+
+Pieces:
+- `scripts/webhook-server.ts` — Bun HTTP listener on port 8080 inside the sprite. Validates the `X-Hub-Signature-256` HMAC, allowlists repo + association, then fire-and-forgets `run-michel.sh`. Logs every request as one JSON line to stdout.
+- `scripts/run-michel.sh` — runs **inside an isolated per-mention dir** `/home/sprite/runs/issue-<N>-<ts>-<pid>/repo` via `gh repo clone`, so concurrent or retriggered `@michel` calls never share state. Pushes with `--force-with-lease`; if a PR already exists for `agent/issue-<N>` it updates the body instead of erroring on duplicate.
+- `scripts/install-michel-service.sh` — one-time setup from your laptop. Uploads the listener, registers it as a `sprite-env services` service (survives hibernation), runs `sprite url update --auth public`, and prints the GitHub webhook config.
+- `.env.michel` (gitignored) — holds `WEBHOOK_SECRET` (shared with GitHub) and the allowlists. `.env.michel.example` is the template.
+
+Setup:
+```bash
+bash scripts/install-michel-service.sh   # idempotent; generates secret on first run
+```
+
+Operate:
+```bash
+sprite exec -- sprite-env services list
+sprite exec -- sprite-env services logs michel-webhook --tail 100
+sprite exec -- sprite-env services stop michel-webhook   # pause without uninstalling
+```
+
+Out of scope: no per-issue lock (concurrent `@michel` mentions race on the same branch), no status comment back to the issue, single-repo.
