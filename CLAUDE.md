@@ -14,7 +14,7 @@ bun run start       # same server without hot reload
 
 The server listens on `PORT` (default `3000`). Open <http://localhost:3000>.
 
-There is no build, lint, typecheck, or test script defined in `package.json`. To typecheck manually: `bunx tsc --noEmit`. There is no test runner configured.
+`package.json` defines `test` (`bun test --pass-with-no-tests`) and `build` (`bun build src/index.html --outdir=dist --target=browser`). No lint script. To typecheck manually: `bunx tsc --noEmit`. The test runner (`bun test`) has no tests yet — UI verification is via the MCP browser servers.
 
 ## Architecture
 
@@ -50,13 +50,16 @@ Single-process full-stack app: one Bun server (`src/server.ts`) serves both the 
 
 ## Michel webhook (GitHub `@michel` → sprite)
 
-A comment containing `@michel` on an issue in `cteyton/sprites-demo` triggers `scripts/run-michel.sh <owner/repo> <issue_number>` on the `test-michel` sprite. Authorization: `comment.author_association ∈ {OWNER, MEMBER, COLLABORATOR}`.
+A comment containing `@michel` on an issue in `cteyton/sprites-demo` hits the webhook listener on the **controller** sprite (`test-michel`), which **dispatches** the run to a **worker sprite** from a pool. Authorization: `comment.author_association ∈ {OWNER, MEMBER, COLLABORATOR}`.
 
 Pieces:
-- `scripts/webhook-server.ts` — Bun HTTP listener on port 8080 inside the sprite. Validates the `X-Hub-Signature-256` HMAC, allowlists repo + association, then fire-and-forgets `run-michel.sh`. Logs every request as one JSON line to stdout.
-- `scripts/run-michel.sh` — runs **inside an isolated per-mention dir** `/home/sprite/runs/issue-<N>-<ts>-<pid>/repo` via `gh repo clone`, so concurrent or retriggered `@michel` calls never share state. Pushes with `--force-with-lease`; if a PR already exists for `agent/issue-<N>` it updates the body instead of erroring on duplicate.
+- `scripts/webhook-server.ts` — Bun HTTP listener on port 8080 on the controller. Validates the `X-Hub-Signature-256` HMAC, allowlists repo + association, then spawns `DISPATCH_SCRIPT` (`dispatch-michel.sh`). The controller no longer runs `run-michel.sh` itself. Logs every request as one JSON line to stdout.
+- `scripts/dispatch-michel.sh` — picks a free worker from `WORKER_SPRITES`, takes a per-issue lock (`/var/michel/locks`, falls back to `/tmp/michel/locks`), and runs `run-michel.sh` on that worker via the sprite CLI. Real parallelism = number of workers.
+- `scripts/run-michel.sh` — runs **on a worker sprite** in an isolated per-mention dir `/home/sprite/runs/issue-<N>-<ts>-<pid>/repo` via `gh repo clone`, so concurrent or retriggered `@michel` calls never share state. Pushes with `--force-with-lease`; if a PR already exists for `agent/issue-<N>` it updates the body instead of erroring on duplicate.
+- `scripts/provision-worker.sh` — provisions a worker sprite (Docker, repo checkout, clean checkpoint) from your laptop: `bash scripts/provision-worker.sh <worker-name>`.
+- `scripts/webhook-runner.sh` / `scripts/dockerd-runner.sh` — service entrypoints for the listener and dockerd inside the sprite.
 - `scripts/install-michel-service.sh` — one-time setup from your laptop. Uploads the listener, registers it as a `sprite-env services` service (survives hibernation), runs `sprite url update --auth public`, and prints the GitHub webhook config.
-- `.env.michel` (gitignored) — holds `WEBHOOK_SECRET` (shared with GitHub) and the allowlists. `.env.michel.example` is the template.
+- `.env.michel` (gitignored) — holds `WEBHOOK_SECRET` (shared with GitHub), the allowlists, plus the worker-pool vars `WORKER_SPRITES`, `SPRITE_TOKEN`, `CONTROLLER_ORG`, and per-worker checkpoint ids. On the sprite this env lives at `/home/sprite/.michel.env`. `.env.michel.example` is the template.
 
 Setup:
 ```bash
@@ -70,4 +73,6 @@ sprite exec -- tail -n 100 /.sprite/logs/services/michel-webhook.log   # no `ser
 sprite exec -- sprite-env services stop michel-webhook   # pause without uninstalling
 ```
 
-Out of scope: no per-issue lock (concurrent `@michel` mentions race on the same branch), no status comment back to the issue, single-repo.
+**Sync gotcha:** `run-michel.sh`, `webhook-server.ts`, and `webhook-runner.sh` are NOT auto-synced to the sprite — editing the repo copy does nothing until you push it (`sprite exec tee /home/sprite/workspace/scripts/<file> < ./scripts/<file>`). `run-michel.sh` applies on the next mention (spawned fresh); `webhook-server.ts`/`webhook-runner.sh` need a service restart. See `scripts/README.md`.
+
+Out of scope: no status comment back to the issue, single-repo.
