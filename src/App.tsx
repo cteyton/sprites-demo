@@ -3,6 +3,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } f
 import { api, type Status, type Task } from "./api";
 import { Column } from "./components/Column";
 import { TaskForm } from "./components/TaskForm";
+import { TaskDrawer } from "./components/TaskDrawer";
 import { ThemeToggle, type Theme } from "./components/ThemeToggle";
 
 const COLUMNS: { id: Status; title: string }[] = [
@@ -22,7 +23,10 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const [drawerTaskId, setDrawerTaskId] = useState<number | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const drawerTask = drawerTaskId !== null ? tasks.find((t) => t.id === drawerTaskId) ?? null : null;
 
   useEffect(() => {
     api.list().then(setTasks).catch((e) => setError(e.message));
@@ -46,7 +50,7 @@ export function App() {
     }
   }
 
-  async function updateTask(id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "position">>) {
+  async function updateTask(id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "severity" | "position">>) {
     const prev = tasks;
     setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, ...patch } as Task : t)));
     try {
@@ -94,7 +98,7 @@ export function App() {
       {error && (
         <div className="mb-4 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 px-4 py-2 text-sm flex justify-between items-center">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-200">×</button>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-200">x</button>
         </div>
       )}
 
@@ -108,10 +112,22 @@ export function App() {
               tasks={tasks.filter((t) => t.status === col.id)}
               onUpdate={updateTask}
               onDelete={deleteTask}
+              onOpenDrawer={setDrawerTaskId}
             />
           ))}
         </div>
       </DndContext>
+
+      {drawerTask && (
+        <TaskDrawer
+          task={drawerTask}
+          onSave={(patch) => {
+            updateTask(drawerTask.id, patch);
+            setDrawerTaskId(null);
+          }}
+          onClose={() => setDrawerTaskId(null)}
+        />
+      )}
     </div>
   );
 }

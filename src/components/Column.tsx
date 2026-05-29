@@ -6,8 +6,9 @@ interface Props {
   id: Status;
   title: string;
   tasks: Task[];
-  onUpdate: (id: number, patch: Partial<Pick<Task, "name" | "description" | "status">>) => void;
+  onUpdate: (id: number, patch: Partial<Pick<Task, "name" | "description" | "status" | "severity">>) => void;
   onDelete: (id: number) => void;
+  onOpenDrawer: (id: number) => void;
 }
 
 const COLUMN_ACCENT: Record<Status, string> = {
@@ -16,7 +17,7 @@ const COLUMN_ACCENT: Record<Status, string> = {
   done: "bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-200",
 };
 
-export function Column({ id, title, tasks, onUpdate, onDelete }: Props) {
+export function Column({ id, title, tasks, onDelete, onOpenDrawer }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   return (
@@ -35,7 +36,7 @@ export function Column({ id, title, tasks, onUpdate, onDelete }: Props) {
           <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4">No tasks</p>
         )}
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onUpdate={onUpdate} onDelete={onDelete} />
+          <TaskCard key={task.id} task={task} onDelete={onDelete} onOpenDrawer={onOpenDrawer} />
         ))}
       </div>
     </div>
